@@ -2,7 +2,7 @@
   <div class="login-container">
     <el-card class="login-card">
       <template #header>
-        <h2>登录系统</h2>
+        <h2 class="login-title">登录系统</h2>
       </template>
       <el-form 
         :model="loginForm" 
@@ -52,6 +52,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { User, Lock } from '@element-plus/icons-vue'
 
 const authStore = useAuthStore()
 const loginFormRef = ref(null)
@@ -85,11 +86,17 @@ const handleLogin = async () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: #f5f5f5;
+  background-color: #f5f7fa;
 }
 
 .login-card {
   width: 400px;
+}
+
+.login-title {
+  text-align: center;
+  margin: 0;
+  color: #303133;
 }
 
 .el-alert {

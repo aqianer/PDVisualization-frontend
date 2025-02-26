@@ -1,11 +1,11 @@
 import { defineStore } from 'pinia'
-import authApi from '@/api/auth'
+import axios from 'axios'
 import router from '@/router'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null,
-    token: localStorage.getItem('token') || null,
+    token: localStorage.getItem('token'),
     loading: false,
     error: null
   }),
@@ -20,11 +20,17 @@ export const useAuthStore = defineStore('auth', {
       try {
         this.loading = true
         this.error = null
-        const data = await authApi.login(username, password)
-        this.token = data.access_token
-        localStorage.setItem('token', data.access_token)
+        
+        const formData = new FormData()
+        formData.append('username', username)
+        formData.append('password', password)
+        
+        const response = await axios.post('/api/token', formData)
+        this.token = response.data.access_token
+        localStorage.setItem('token', this.token)
+        
         await this.fetchCurrentUser()
-        router.push('/plan-management')
+        router.push('/')
       } catch (error) {
         this.error = error.response?.data?.detail || '登录失败'
         throw error
@@ -35,8 +41,10 @@ export const useAuthStore = defineStore('auth', {
 
     async fetchCurrentUser() {
       try {
-        const user = await authApi.getCurrentUser()
-        this.user = user
+        const response = await axios.get('/api/users/me', {
+          headers: { Authorization: `Bearer ${this.token}` }
+        })
+        this.user = response.data
       } catch (error) {
         this.logout()
         throw error

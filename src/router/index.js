@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/login',
@@ -11,10 +11,27 @@ const router = createRouter({
       meta: { requiresAuth: false }
     },
     {
-      path: '/plan-management',
-      name: 'plan-management',
-      component: () => import('@/views/PlanManagement.vue'),
-      meta: { requiresAuth: true }
+      path: '/',
+      name: 'layout',
+      component: () => import('@/views/Layout.vue'),
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: '',
+          name: 'dashboard',
+          component: () => import('@/views/Dashboard.vue')
+        },
+        {
+          path: 'plans',
+          name: 'plans',
+          component: () => import('@/views/PlanManagement.vue')
+        },
+        {
+          path: 'profile',
+          name: 'profile',
+          component: () => import('@/views/UserProfile.vue')
+        }
+      ]
     }
   ]
 })
@@ -28,7 +45,7 @@ router.beforeEach(async (to, from, next) => {
   }
   
   if (to.path === '/login' && authStore.isAuthenticated) {
-    next('/plan-management')
+    next('/')
     return
   }
   
