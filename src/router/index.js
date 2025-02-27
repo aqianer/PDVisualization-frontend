@@ -32,6 +32,10 @@ const router = createRouter({
           component: () => import('@/views/UserProfile.vue')
         }
       ]
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: '/'
     }
   ]
 })
@@ -40,12 +44,12 @@ router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
   
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-    next('/login')
+    next({ name: 'login', query: { redirect: to.fullPath } })
     return
   }
   
-  if (to.path === '/login' && authStore.isAuthenticated) {
-    next('/')
+  if (to.name === 'login' && authStore.isAuthenticated) {
+    next({ name: 'dashboard' })
     return
   }
   

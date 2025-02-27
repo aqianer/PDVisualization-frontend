@@ -1,7 +1,12 @@
 <template>
   <div class="dashboard-container">
+    <!-- 热力图 -->
+    <el-card shadow="hover" class="heatmap-card">
+      <div ref="heatmapChart" class="heatmap-container"></div>
+    </el-card>
+
     <!-- 统计卡片 -->
-    <el-row :gutter="20">
+    <el-row :gutter="20" class="stat-cards">
       <el-col :span="8">
         <el-card shadow="hover">
           <template #header>
@@ -95,9 +100,29 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
+import * as echarts from 'echarts'
 
-// 模拟数据
+// 模拟数据生成函数
+const generateHeatmapData = () => {
+  const now = new Date()
+  const data = []
+  const startDate = new Date(now.getFullYear(), 0, 1) // 从今年1月1日开始
+  
+  while (startDate <= now) {
+    // 随机生成完成度级别 (0-4)
+    const heatLevel = Math.floor(Math.random() * 5)
+    data.push({
+      date: new Date(startDate),
+      value: heatLevel
+    })
+    startDate.setDate(startDate.getDate() + 1)
+  }
+  return data
+}
+
+// 状态和引用
+const heatmapChart = ref(null)
 const stats = reactive({
   githubEvents: 23,
   togglHours: 42.5,
@@ -111,14 +136,95 @@ const projects = ref([
   { id: 2, name: '项目B' }
 ])
 
+// 计算属性
+const heatmapData = computed(() => {
+  return generateHeatmapData()
+})
+
+// 初始化热力图
+const initHeatmap = () => {
+  if (!heatmapChart.value) return
+  
+  const chart = echarts.init(heatmapChart.value)
+  const data = heatmapData.value
+  
+  const calendar = {
+    top: 40,
+    left: 50,
+    right: 10,
+    cellSize: ['auto', 20],
+    range: new Date().getFullYear(),
+    itemStyle: {
+      borderWidth: 2,
+      borderColor: '#fff'
+    },
+    yearLabel: { show: false }
+  }
+  
+  const option = {
+    title: {
+      top: 0,
+      left: 'center',
+      text: '计划完成度热力图'
+    },
+    tooltip: {
+      formatter: function (params) {
+        return `${params.value[0]}<br/>完成度: ${params.value[1]}`
+      }
+    },
+    visualMap: {
+      show: false,
+      min: 0,
+      max: 4,
+      calculable: true,
+      orient: 'horizontal',
+      left: 'center',
+      top: 'top',
+      inRange: {
+        color: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39']
+      }
+    },
+    calendar: calendar,
+    series: {
+      type: 'heatmap',
+      coordinateSystem: 'calendar',
+      calendarIndex: 0,
+      data: data.map(item => [
+        echarts.format.formatTime('yyyy-MM-dd', item.date),
+        item.value
+      ])
+    }
+  }
+  
+  chart.setOption(option)
+  
+  // 响应窗口大小变化
+  window.addEventListener('resize', () => {
+    chart.resize()
+  })
+}
+
 onMounted(() => {
-  // 这里将添加数据加载逻辑
+  initHeatmap()
 })
 </script>
 
 <style scoped>
 .dashboard-container {
   padding: 20px;
+}
+
+.heatmap-card {
+  margin-bottom: 20px;
+}
+
+.heatmap-container {
+  height: 200px;
+  width: 100%;
+}
+
+.stat-cards {
+  margin-bottom: 20px;
 }
 
 .chart-row {

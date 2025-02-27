@@ -1,8 +1,6 @@
 import {defineStore} from 'pinia'
-import axios from 'axios'
+import request from '@/utils/request'
 import router from '@/router'
-
-const API_URL = 'http://localhost:8000'
 
 export const useAuthStore = defineStore('auth', {
     state: () => ({
@@ -29,16 +27,17 @@ export const useAuthStore = defineStore('auth', {
                     password: password
                 }
 
-                const response = await axios.post(`${API_URL}/api/token`, payload, {
+                const response = await request.post('/token', payload, {
                     headers: {
                         'Content-Type': 'application/json' // 设置为 JSON 格式
                     }
                 })
-                this.token = response.data.access_token
+                console.log(response);
+                this.token = response.access_token
                 localStorage.setItem('token', this.token)
 
                 await this.fetchCurrentUser()
-                router.push('/')
+                await router.push('/')
             } catch (error) {
                 this.error = error.response?.data?.detail || '登录失败'
                 throw error
@@ -49,10 +48,8 @@ export const useAuthStore = defineStore('auth', {
 
         async fetchCurrentUser() {
             try {
-                const response = await axios.get(`${API_URL}/api/users/me`, {
-                    headers: {Authorization: `Bearer ${this.token}`}
-                })
-                this.user = response.data
+                const response = await request.get('/users/me')
+                this.user = response
             } catch (error) {
                 this.logout()
                 throw error

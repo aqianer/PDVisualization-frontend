@@ -1,26 +1,5 @@
 <template>
   <el-container class="layout-container">
-    <el-aside width="200px">
-      <el-menu
-        :default-active="route.path"
-        class="el-menu-vertical"
-        router
-      >
-        <el-menu-item index="/">
-          <el-icon><DataLine /></el-icon>
-          <span>数据概览</span>
-        </el-menu-item>
-        <el-menu-item index="/plans">
-          <el-icon><Calendar /></el-icon>
-          <span>计划管理</span>
-        </el-menu-item>
-        <el-menu-item index="/profile">
-          <el-icon><User /></el-icon>
-          <span>个人设置</span>
-        </el-menu-item>
-      </el-menu>
-    </el-aside>
-    
     <el-container>
       <el-header>
         <div class="header-content">
@@ -32,8 +11,18 @@
             </span>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="profile">个人设置</el-dropdown-item>
-                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+                <el-dropdown-item command="dashboard">
+                  <el-icon><DataLine /></el-icon>数据概览
+                </el-dropdown-item>
+                <el-dropdown-item command="plans">
+                  <el-icon><Calendar /></el-icon>计划管理
+                </el-dropdown-item>
+                <el-dropdown-item command="profile">
+                  <el-icon><User /></el-icon>个人设置
+                </el-dropdown-item>
+                <el-dropdown-item divided command="logout">
+                  <el-icon><SwitchButton /></el-icon>退出登录
+                </el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -50,17 +39,16 @@
 <script setup>
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { DataLine, Calendar, User, ArrowDown } from '@element-plus/icons-vue'
+import { DataLine, Calendar, User, ArrowDown, SwitchButton } from '@element-plus/icons-vue'
 
-const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 
 const handleCommand = (command) => {
   if (command === 'logout') {
     authStore.logout()
-  } else if (command === 'profile') {
-    router.push('/profile')
+  } else {
+    router.push(`/${command === 'dashboard' ? '' : command}`)
   }
 }
 </script>
@@ -68,11 +56,6 @@ const handleCommand = (command) => {
 <style scoped>
 .layout-container {
   height: 100vh;
-}
-
-.el-menu-vertical {
-  height: 100%;
-  border-right: none;
 }
 
 .el-header {
@@ -93,6 +76,16 @@ const handleCommand = (command) => {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+.el-dropdown-menu {
+  padding: 5px 0;
+}
+
+.el-dropdown-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .el-main {
