@@ -9,7 +9,12 @@
 
     <!-- 计划列表 -->
     <el-table :data="planList" style="width: 100%" v-loading="loading">
-      <el-table-column prop="plan_name" label="计划名称"/>
+      <el-table-column prop="plan_name" label="计划名称">
+        <template #default="scope">
+          {{ scope.row.plan_name }}
+        </template>
+      </el-table-column>
+
       <el-table-column label="Toggl项目">
         <template #default="scope">
           {{ getProjectName(scope.row.toggl_project_id) }}
@@ -85,13 +90,33 @@
               v-model="planForm.repo_id"
               placeholder="选择GitHub仓库"
               :loading="reposLoading"
+              filterable
           >
             <el-option
                 v-for="repo in githubRepos"
-                :key="repo.id"
-                :label="repo.name"
-                :value="repo.id"
+                :key="repo.github_id"
+                :label="repo.repo_name"
+                :value="repo.github_id"
             />
+            <template #suffix>
+              <div v-if="!showAllRepos && githubRepos.length >= reposPagination.per_page">
+                <el-divider/>
+                <el-button link type="primary" @click.stop="handleShowMoreRepos">
+                  显示更多仓库
+                </el-button>
+              </div>
+              <div v-else-if="showAllRepos" class="pagination-container">
+                <el-divider/>
+                <el-pagination
+                    v-model:current-page="reposPagination.page"
+                    :page-size="reposPagination.per_page"
+                    :total="reposPagination.total"
+                    layout="prev, pager, next"
+                    @current-change="handleRepoPageChange"
+                    small
+                />
+              </div>
+            </template>
           </el-select>
         </el-form-item>
 
@@ -108,7 +133,7 @@
         <el-form-item label="截止日期" prop="deadline">
           <el-date-picker
               v-model="planForm.deadline"
-              type="date"
+              type="datetime"
               placeholder="选择截止日期"
               :disabled-date="disabledDate"
           />
@@ -128,7 +153,7 @@
 </template>
 
 <script setup>
-import {ref, reactive, onMounted} from 'vue'
+import {onMounted, reactive, ref, watch} from 'vue'
 import {ElMessage, ElMessageBox} from 'element-plus'
 import request from '@/utils/request'
 
@@ -141,20 +166,28 @@ const submitting = ref(false)
 const dialogVisible = ref(false)
 const editingPlan = ref(null)
 const planFormRef = ref(null)
+const showAllRepos = ref(false)
 
 // 数据列表
 const planList = ref([])
 const togglProjects = ref([])
 const githubRepos = ref([])
+const reposPagination = reactive({
+  page: 1,
+  total: 0,
+  per_page: 5
+})
 
 // 表单数据
-const planForm = reactive({
+const defaultPlanForm = {
   plan_name: '',
   toggl_project_id: '',
   repo_id: '',
   daily_plan_duration: 2,
   deadline: ''
-})
+}
+
+const planForm = reactive({...defaultPlanForm})
 
 // 表单验证规则
 const rules = {
@@ -168,6 +201,16 @@ const rules = {
 // 工具函数
 const formatDate = (date) => {
   return new Date(date).toLocaleDateString()
+}
+
+const getProjectName = (projectId) => {
+  const project = togglProjects.value.find(p => p.id === projectId)
+  return project ? project.name : '未知项目'
+}
+
+const getRepoName = (repoId) => {
+  const repo = githubRepos.value.find(r => r.github_id === repoId)
+  return repo ? repo.repo_name : '未知仓库'
 }
 
 const getStatusType = (status) => {
@@ -198,8 +241,7 @@ const disabledDate = (time) => {
 const loadPlans = async () => {
   try {
     loading.value = true
-    const response = await request.get('/plans')
-    planList.value = response
+    planList.value = await request.get('/plans')
   } catch (error) {
     ElMessage.error('加载计划列表失败')
   } finally {
@@ -219,11 +261,18 @@ const loadProjects = async () => {
   }
 }
 
-const loadRepos = async () => {
+const loadRepos = async (page = 1) => {
   try {
     reposLoading.value = true
-    const response = await request.get('/github/repos')
-    githubRepos.value = response
+    const response = await request.get('/github/repos', {
+      params: {
+        page,
+        per_page: showAllRepos.value ? 20 : reposPagination.per_page
+      }
+    })
+    githubRepos.value = response.items
+    reposPagination.total = response.total
+    reposPagination.page = response.page
   } catch (error) {
     ElMessage.error('加载GitHub仓库失败')
   } finally {
@@ -236,6 +285,14 @@ const handleEdit = (plan) => {
   editingPlan.value = plan
   Object.assign(planForm, plan)
   dialogVisible.value = true
+}
+
+const resetForm = () => {
+  editingPlan.value = null
+  Object.assign(planForm, defaultPlanForm)
+  if (planFormRef.value) {
+    planFormRef.value.resetFields()
+  }
 }
 
 const handleDelete = async (plan) => {
@@ -277,6 +334,21 @@ const handleSubmit = async () => {
   }
 }
 
+const handleShowMoreRepos = async () => {
+  showAllRepos.value = true
+  await loadRepos(1)
+}
+
+const handleRepoPageChange = async (page) => {
+  await loadRepos(page)
+}
+
+watch(dialogVisible, (newVal) => {
+  if (!newVal) {
+    resetForm()
+  }
+})
+
 // 生命周期钩子
 onMounted(async () => {
   await Promise.all([
@@ -308,5 +380,19 @@ onMounted(async () => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.el-select {
+  width: 100%;
+}
+
+.pagination-container {
+  padding: 8px 0;
+  text-align: center;
+}
+
+.el-pagination {
+  justify-content: center;
+  padding: 0;
 }
 </style> 

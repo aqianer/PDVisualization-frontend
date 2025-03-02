@@ -1,6 +1,7 @@
 import {defineStore} from 'pinia'
 import request from '@/utils/request'
 import router from '@/router'
+import CryptoJS from 'crypto-js'
 
 export const useAuthStore = defineStore('auth', {
     state: () => ({
@@ -21,18 +22,34 @@ export const useAuthStore = defineStore('auth', {
                 this.loading = true
                 this.error = null
 
-                // 将表单数据以 JSON 格式发送
+                // 生成随机的 IV
+                const iv = CryptoJS.lib.WordArray.random(16)
+                
+                // 从Base64解码密钥
+                const keyBase64 = import.meta.env.VITE_ENCRYPTION_KEY
+                const keyWords = CryptoJS.enc.Base64.parse(keyBase64)
+                
+                // 使用 PKCS7 填充并加密
+                const encrypted = CryptoJS.AES.encrypt(password, keyWords, {
+                    iv: iv,
+                    mode: CryptoJS.mode.CBC,
+                    padding: CryptoJS.pad.Pkcs7
+                })
+
+                // 将 IV 和加密后的密码组合在一起
+                const combined = iv.concat(encrypted.ciphertext)
+                const encryptedBase64 = CryptoJS.enc.Base64.stringify(combined)
+
                 const payload = {
                     username: username,
-                    password: password
+                    password: encryptedBase64
                 }
 
                 const response = await request.post('/token', payload, {
                     headers: {
-                        'Content-Type': 'application/json' // 设置为 JSON 格式
+                        'Content-Type': 'application/json'
                     }
                 })
-                console.log(response);
                 this.token = response.access_token
                 localStorage.setItem('token', this.token)
 
