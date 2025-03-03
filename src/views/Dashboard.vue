@@ -100,26 +100,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import * as echarts from 'echarts'
-
-// 模拟数据生成函数
-const generateHeatmapData = () => {
-  const now = new Date()
-  const data = []
-  const startDate = new Date(now.getFullYear(), 0, 1) // 从今年1月1日开始
-  
-  while (startDate <= now) {
-    // 随机生成完成度级别 (0-4)
-    const heatLevel = Math.floor(Math.random() * 5)
-    data.push({
-      date: new Date(startDate),
-      value: heatLevel
-    })
-    startDate.setDate(startDate.getDate() + 1)
-  }
-  return data
-}
+import request from '@/utils/request'
 
 // 状态和引用
 const heatmapChart = ref(null)
@@ -136,17 +119,28 @@ const projects = ref([
   { id: 2, name: '项目B' }
 ])
 
-// 计算属性
-const heatmapData = computed(() => {
-  return generateHeatmapData()
-})
+// 热力图数据
+const heatmapData = ref([])
+
+// 获取热力图数据
+const fetchHeatmapData = async () => {
+  try {
+    const response = await request.get('/plans/heatmap')
+    heatmapData.value = response.map(item => ({
+      date: new Date(item.record_date),
+      value: item.heat_level,
+      details: item.plan_status
+    }))
+  } catch (error) {
+    console.error('Failed to fetch heatmap data:', error)
+  }
+}
 
 // 初始化热力图
 const initHeatmap = () => {
-  if (!heatmapChart.value) return
+  if (!heatmapChart.value || !heatmapData.value.length) return
   
   const chart = echarts.init(heatmapChart.value)
-  const data = heatmapData.value
   
   const calendar = {
     top: 40,
@@ -169,7 +163,20 @@ const initHeatmap = () => {
     },
     tooltip: {
       formatter: function (params) {
-        return `${params.value[0]}<br/>完成度: ${params.value[1]}`
+        const data = heatmapData.value.find(item => 
+          echarts.format.formatTime('yyyy-MM-dd', item.date) === params.value[0]
+        )
+        
+        if (!data) return params.value[0]
+        
+        let details = '<div style="margin: 10px 0;">完成度等级: ' + params.value[1] + '</div>'
+        details += '<div style="margin: 5px 0;">计划完成情况:</div>'
+        
+        for (const [planName, status] of Object.entries(data.details)) {
+          details += `<div>${planName}: ${status.completed ? '已完成' : '未完成'} (${status.duration}分钟)</div>`
+        }
+        
+        return params.value[0] + details
       }
     },
     visualMap: {
@@ -189,7 +196,7 @@ const initHeatmap = () => {
       type: 'heatmap',
       coordinateSystem: 'calendar',
       calendarIndex: 0,
-      data: data.map(item => [
+      data: heatmapData.value.map(item => [
         echarts.format.formatTime('yyyy-MM-dd', item.date),
         item.value
       ])
@@ -204,7 +211,13 @@ const initHeatmap = () => {
   })
 }
 
-onMounted(() => {
+// 监听数据变化
+watch(heatmapData, () => {
+  initHeatmap()
+}, { deep: true })
+
+onMounted(async () => {
+  await fetchHeatmapData()
   initHeatmap()
 })
 </script>

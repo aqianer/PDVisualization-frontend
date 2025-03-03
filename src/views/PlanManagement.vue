@@ -35,6 +35,11 @@
           {{ formatDate(scope.row.deadline) }}
         </template>
       </el-table-column>
+      <el-table-column prop="plan_type" label="计划类型">
+        <template #default="scope">
+          {{ getTypeText(scope.row.plan_type) }}
+        </template>
+      </el-table-column>
       <el-table-column prop="plan_status" label="状态">
         <template #default="scope">
           <el-tag :type="getStatusType(scope.row.plan_status)">
@@ -120,6 +125,21 @@
           </el-select>
         </el-form-item>
 
+        <el-form-item label="计划类型" prop="plan_type">
+          <el-select
+              v-model="planForm.plan_type"
+              placeholder="选择计划类型"
+              :loading="projectsLoading"
+          >
+            <el-option
+                v-for="planType in planTypes"
+                :key="planType.key"
+                :label="planType.value"
+                :value="planType.key"
+            />
+          </el-select>
+        </el-form-item>
+
         <el-form-item label="每日计划时长" prop="daily_plan_duration">
           <el-input-number
               v-model="planForm.daily_plan_duration"
@@ -177,6 +197,20 @@ const reposPagination = reactive({
   total: 0,
   per_page: 5
 })
+const planTypes=ref([
+  {
+    key:0,
+    value:'未加入'
+  },
+  {
+    key:1,
+    value:'每日必做'
+  },
+  {
+    key:2,
+    value:'非每日必做'
+  }
+])
 
 // 表单数据
 const defaultPlanForm = {
@@ -184,6 +218,7 @@ const defaultPlanForm = {
   toggl_project_id: '',
   repo_id: '',
   daily_plan_duration: 2,
+  plan_type: 0,
   deadline: ''
 }
 
@@ -222,7 +257,6 @@ const getStatusType = (status) => {
   }
   return types[status]
 }
-
 const getStatusText = (status) => {
   const texts = {
     0: '延期',
@@ -231,6 +265,15 @@ const getStatusText = (status) => {
     3: '废弃'
   }
   return texts[status]
+}
+
+const getTypeText = (type) => {
+  const texts = {
+    0: '未加入',
+    1: '每日必做',
+    2: '非每日必做'
+  }
+  return texts[type]
 }
 
 const disabledDate = (time) => {
