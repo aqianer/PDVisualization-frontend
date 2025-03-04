@@ -2,6 +2,28 @@
   <div class="dashboard-container">
     <!-- 热力图 -->
     <el-card shadow="hover" class="heatmap-card">
+      <template #header>
+        <div class="card-header">
+          <span>计划完成度热力图</span>
+          <div class="filter-group">
+            <el-select v-model="heatmapFilter.planType" placeholder="计划类型" size="small">
+              <el-option label="全部计划" value="" />
+              <el-option label="每日必做" value="1" />
+              <el-option label="非每日必做" value="2" />
+            </el-select>
+            <el-date-picker
+              v-model="heatmapFilter.dateRange"
+              type="daterange"
+              range-separator="至"
+              start-placeholder="开始日期"
+              end-placeholder="结束日期"
+              size="small"
+              :shortcuts="dateShortcuts"
+              @change="handleDateRangeChange"
+            />
+          </div>
+        </div>
+      </template>
       <div ref="heatmapChart" class="heatmap-container"></div>
     </el-card>
 
@@ -122,10 +144,66 @@ const projects = ref([
 // 热力图数据
 const heatmapData = ref([])
 
+// 热力图筛选条件
+const heatmapFilter = reactive({
+  planType: '',
+  dateRange: null
+})
+
+// 日期快捷选项
+const dateShortcuts = [
+  {
+    text: '最近一周',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setTime(start.getTime() - 3600 * 1000 * 24 * 7)
+      return [start, end]
+    }
+  },
+  {
+    text: '最近一月',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setMonth(start.getMonth() - 1)
+      return [start, end]
+    }
+  },
+  {
+    text: '最近三月',
+    value: () => {
+      const end = new Date()
+      const start = new Date()
+      start.setMonth(start.getMonth() - 3)
+      return [start, end]
+    }
+  }
+]
+
+// 处理日期范围变化
+const handleDateRangeChange = () => {
+  initHeatmap()
+}
+
+// 监听筛选条件变化
+watch(heatmapFilter, () => {
+  initHeatmap()
+}, { deep: true })
+
 // 获取热力图数据
 const fetchHeatmapData = async () => {
   try {
-    const response = await request.get('/plans/heatmap')
+    const params = {}
+    if (heatmapFilter.planType) {
+      params.plan_type = heatmapFilter.planType
+    }
+    if (heatmapFilter.dateRange) {
+      params.start_date = heatmapFilter.dateRange[0].toISOString().split('T')[0]
+      params.end_date = heatmapFilter.dateRange[1].toISOString().split('T')[0]
+    }
+    
+    const response = await request.get('/plans/heatmap', { params })
     heatmapData.value = response.map(item => ({
       date: new Date(item.record_date),
       value: item.heat_level,
@@ -142,26 +220,36 @@ const initHeatmap = () => {
   
   const chart = echarts.init(heatmapChart.value)
   
+  const startDate = heatmapFilter.dateRange ? 
+    heatmapFilter.dateRange[0].getFullYear() :
+    new Date().getFullYear()
+  
   const calendar = {
-    top: 40,
+    top: 50,
     left: 50,
     right: 10,
     cellSize: ['auto', 20],
-    range: new Date().getFullYear(),
+    range: startDate,
     itemStyle: {
       borderWidth: 2,
-      borderColor: '#fff'
+      borderColor: '#fff',
+      borderRadius: 2
     },
-    yearLabel: { show: false }
+    yearLabel: { show: false },
+    dayLabel: {
+      nameMap: ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+    },
+    monthLabel: {
+      nameMap: 'cn'
+    }
   }
   
   const option = {
     title: {
-      top: 0,
-      left: 'center',
-      text: '计划完成度热力图'
+      show: false
     },
     tooltip: {
+      position: 'top',
       formatter: function (params) {
         const data = heatmapData.value.find(item => 
           echarts.format.formatTime('yyyy-MM-dd', item.date) === params.value[0]
@@ -169,26 +257,53 @@ const initHeatmap = () => {
         
         if (!data) return params.value[0]
         
-        let details = '<div style="margin: 10px 0;">完成度等级: ' + params.value[1] + '</div>'
-        details += '<div style="margin: 5px 0;">计划完成情况:</div>'
+        let details = `<div class="heatmap-tooltip">
+          <div class="tooltip-date">${params.value[0]}</div>
+          <div class="tooltip-level">完成度等级: ${params.value[1]}</div>
+          <div class="tooltip-plans">计划完成情况:</div>`
         
         for (const [planName, status] of Object.entries(data.details)) {
-          details += `<div>${planName}: ${status.completed ? '已完成' : '未完成'} (${status.duration}分钟)</div>`
+          const statusClass = status.completed ? 'completed' : 'incomplete'
+          const planTypeText = status.plan_type === 1 ? '(每日必做)' : 
+                             status.plan_type === 2 ? '(非每日)' : ''
+          details += `
+            <div class="plan-item ${statusClass}">
+              <span class="plan-name">${planName}${planTypeText}</span>
+              <span class="plan-duration">${status.duration}分钟</span>
+            </div>`
         }
         
-        return params.value[0] + details
-      }
+        details += '</div>'
+        return details
+      },
+      extraCssText: `
+        background-color: rgba(255, 255, 255, 0.95);
+        border-radius: 4px;
+        padding: 10px;
+        width: auto;
+        min-width: 250px;
+        box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+        z-index: 9999;
+      `
     },
     visualMap: {
-      show: false,
+      show: true,
       min: 0,
       max: 4,
       calculable: true,
       orient: 'horizontal',
       left: 'center',
-      top: 'top',
+      top: 20,
       inRange: {
         color: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39']
+      },
+      controller: {
+        inRange: {
+          symbol: 'rect'
+        }
+      },
+      textStyle: {
+        color: '#666'
       }
     },
     calendar: calendar,
@@ -199,7 +314,13 @@ const initHeatmap = () => {
       data: heatmapData.value.map(item => [
         echarts.format.formatTime('yyyy-MM-dd', item.date),
         item.value
-      ])
+      ]),
+      emphasis: {
+        itemStyle: {
+          shadowBlur: 10,
+          shadowColor: 'rgba(0, 0, 0, 0.2)'
+        }
+      }
     }
   }
   
@@ -210,11 +331,6 @@ const initHeatmap = () => {
     chart.resize()
   })
 }
-
-// 监听数据变化
-watch(heatmapData, () => {
-  initHeatmap()
-}, { deep: true })
 
 onMounted(async () => {
   await fetchHeatmapData()
@@ -232,7 +348,7 @@ onMounted(async () => {
 }
 
 .heatmap-container {
-  height: 200px;
+  height: 250px;
   width: 100%;
 }
 
@@ -272,5 +388,60 @@ onMounted(async () => {
   justify-content: center;
   align-items: center;
   color: #909399;
+}
+
+.filter-group {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.heatmap-tooltip {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+.tooltip-date {
+  font-size: 14px;
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: #303133;
+}
+
+.tooltip-level {
+  font-size: 13px;
+  color: #606266;
+  margin-bottom: 8px;
+}
+
+.tooltip-plans {
+  font-size: 13px;
+  color: #606266;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #EBEEF5;
+  padding-bottom: 4px;
+}
+
+.plan-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.plan-item.completed {
+  color: #67C23A;
+}
+
+.plan-item.incomplete {
+  color: #F56C6C;
+}
+
+.plan-name {
+  margin-right: 10px;
+}
+
+.plan-duration {
+  font-weight: 500;
 }
 </style> 
