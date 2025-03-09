@@ -1,12 +1,12 @@
 <template>
   <div class="dashboard-container" :class="currentTheme">
     <!-- 主题切换按钮 -->
-    <el-button
-        class="theme-toggle"
-        :icon="currentTheme === 'light' ? 'Moon' : 'Sunny'"
-        circle
-        @click="toggleTheme"
-    />
+<!--    <el-button-->
+<!--        class="theme-toggle"-->
+<!--        :icon="currentTheme === 'light' ? 'Moon' : 'Sunny'"-->
+<!--        circle-->
+<!--        @click="toggleTheme"-->
+<!--    />-->
 
     <!-- 热力图 -->
     <el-card shadow="hover" class="heatmap-card">
@@ -176,15 +176,7 @@
           <template #header>
             <div class="card-header">
               <span>时间分布</span>
-              <el-select v-model="projectFilter" size="small" placeholder="选择项目">
-                <el-option label="全部项目" value=""/>
-                <el-option
-                    v-for="project in projects"
-                    :key="project.id"
-                    :label="project.name"
-                    :value="project.id"
-                />
-              </el-select>
+
             </div>
           </template>
           <div class="chart-container" ref="distributionChart"></div>
@@ -206,11 +198,7 @@ const progressCircle = ref(null)
 const trendChart = ref(null)
 const distributionChart = ref(null)
 const timeRange = ref('week')
-const projectFilter = ref('')
-const projects = ref([
-  {id: 1, name: '项目A'},
-  {id: 2, name: '项目B'}
-])
+
 
 // 数据状态
 const loading_data = reactive({
@@ -357,12 +345,12 @@ const initHeatmap = () => {
     top: 50,
     left: 50,
     right: 10,
-    cellSize: ['auto', 20],
+    cellSize: ['auto', 26],
     range: startDate,
     itemStyle: {
-      borderWidth: 2,
+      borderWidth: 7,
       borderColor: '#fff',
-      borderRadius: 2
+      borderRadius: 7
     },
     yearLabel: {show: false},
     dayLabel: {
@@ -380,42 +368,137 @@ const initHeatmap = () => {
     tooltip: {
       position: 'top',
       formatter: function (params) {
-        const data = heatmapData.value.find(item =>
-            echarts.format.formatTime('yyyy-MM-dd', item.date) === params.value[0]
-        )
+        console.log(heatmapData.value instanceof Array) //true
+        console.log(heatmapData.value)
+        // const data = heatmapData.value.find(item =>
+        //     echarts.format.formatTime('yyyy-MM-dd', item.date)  === params.value[0]
+        // )
+        const dateIndex = new Map();
+        heatmapData.value.forEach(item => {
+          const key = echarts.format.formatTime('yyyy-MM-dd', item.date);
+          dateIndex.set(key, item);
+        });
 
+        const data = dateIndex.get(params.value[0]);
+
+        console.log(data)
+        
         if (!data) return params.value[0]
 
         let details = `<div class="heatmap-tooltip">
-          <div class="tooltip-date">${params.value[0]}</div>
-          <div class="tooltip-level">完成度等级: ${params.value[1]}</div>
-          <div class="tooltip-plans">计划完成情况:</div>`
+          <div class="tooltip-header">
+            <span class="tooltip-date">${params.value[0]}</span>
+            <span class="tooltip-level">热力等级: ${data.value}</span>
+          </div>
+          <div class="tooltip-divider"></div>
+          <div class="tooltip-plans">
+            <div class="plans-title">计划完成情况:</div>`
 
+        // 遍历所有计划状态
         for (const [planName, status] of Object.entries(data.details)) {
           const statusClass = status.completed ? 'completed' : 'incomplete'
           const planTypeText = status.plan_type === 1 ? '(每日必做)' :
-              status.plan_type === 2 ? '(非每日)' : ''
+              status.plan_type === 2 ? '(非每日)' : '(未加入)'
+          const duration = status.duration || 0
+          console.log(duration)
           details += `
             <div class="plan-item ${statusClass}">
-              <span class="plan-name">${planName}${planTypeText}</span>
-              <span class="plan-duration">${status.duration}分钟</span>
+              <div class="plan-info">
+                <span class="plan-name">${planName}</span>
+                <span class="plan-type">${planTypeText}</span>
+              </div>
+              <span class="plan-duration">${duration}分钟</span>
             </div>`
         }
 
-        details += '</div>'
+        details += '</div></div>'
         return details
       },
       appendToBody: true,
       extraCssText: `
-        background-color: var(--tooltip-bg);
-        border-radius: 4px;
-        padding: 10px;
+        background-color: var(--bg-card);
+        border-radius: 8px;
+        padding: 16px;
         width: auto;
-        min-width: 250px;
-        box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+        min-width: 300px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         z-index: 9999;
-        color: var(--tooltip-text);
-        border: 1px solid var(--tooltip-border);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        font-family: system-ui, -apple-system, sans-serif;
+        
+        .heatmap-tooltip {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        
+        .tooltip-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 14px;
+        }
+        
+        .tooltip-date {
+          font-weight: 500;
+        }
+        
+        .tooltip-level {
+          color: var(--text-secondary);
+
+        }
+        
+        .tooltip-divider {
+          height: 1px;
+          background: var(--border-color);
+          margin: 4px 0;
+        }
+        
+        .plans-title {
+          font-weight: 500;
+          margin-bottom: 8px;
+          color: var(--text-secondary);
+        }
+        
+        .plan-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px;
+          margin: 4px 0;
+          border-radius: 6px;
+          background: var(--bg-hover);
+        }
+        
+        .plan-info {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        
+        .plan-name {
+          font-weight: 500;
+        }
+        
+        .plan-type {
+          font-size: 12px;
+          color: var(--text-secondary);
+        }
+        
+        .plan-duration {
+          font-size: 13px;
+          color: var(--text-secondary);
+        }
+        
+        .completed {
+          border-left: 3px solid var(--primary-color);
+        }
+        
+        .incomplete {
+          border-left: 3px solid var(--border-color);
+          opacity: 0.8;
+        }
       `
     },
     visualMap: {
@@ -425,7 +508,7 @@ const initHeatmap = () => {
       calculable: true,
       orient: 'horizontal',
       left: 'center',
-      top: 20,
+      top: -20,
       inRange: {
         color: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39']
       },
@@ -615,7 +698,7 @@ const initDistributionChart = (data) => {
   const option = {
     tooltip: {
       trigger: 'item',
-      formatter: '{b}: {c}分钟 ({d}%)'
+      formatter: '{b}: {c}小时 ({d}%)'
     },
     legend: {
       orient: 'vertical',
@@ -788,8 +871,9 @@ onMounted(async () => {
 }
 
 .heatmap-container {
-  height: 250px;
-  width: 100%;
+  height: 260px;
+  width: 94%;
+  margin-left: 40px;
 }
 
 .stat-cards {
@@ -859,14 +943,14 @@ onMounted(async () => {
 
 .filter-group {
   display: flex;
-  gap: 10px;
+  gap: 20px;
   align-items: center;
 }
 
 .heatmap-tooltip {
   background-color: var(--tooltip-bg);
   color: var(--tooltip-text);
-  border: 1px solid var(--tooltip-border);
+  border: 0px solid var(--tooltip-border);
 }
 
 .tooltip-date {
